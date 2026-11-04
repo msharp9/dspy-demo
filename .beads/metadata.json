@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "dspy",
+  "project_id": "eb1a335c-fc35-47ea-aac8-c3556fa717cf"
+}
