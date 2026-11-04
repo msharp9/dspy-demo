@@ -31,6 +31,7 @@ The demos use a local [Ollama](https://ollama.com) model (`llama3.2`). Start Oll
 
 ```bash
 ollama pull llama3.2
+ollama pull llama3.1:8b   # reflection model for the GEPA demo
 ```
 
 | Script | What it shows |
@@ -38,7 +39,8 @@ ollama pull llama3.2
 | `src/main.py` | Signatures, `Predict`, `ChainOfThought`, a `ReAct` agent with Wikipedia tools, and a multi-step `Module` |
 | `src/class_demo.py` | Optimizing with `BootstrapFewShot` on GSM8K math problems, then saving and loading the program |
 | `src/saving.py` | Saving a program as state-only JSON vs. the whole program |
-| `src/optimizers.py` | Optimizing a 77-way intent classifier with `MIPROv2`, measuring accuracy before and after |
+| `src/optimizers.py` | Optimizing a 77-way intent classifier with `MIPROv2`, measuring accuracy before and after (~10 min locally) |
+| `src/gepa_demo.py` | **New in DSPy 3:** `GEPA`, a reflective optimizer. The metric returns written feedback, and a stronger model (`REFLECTION_MODEL`, default `llama3.1:8b`) reads it to rewrite the prompt (~20 min locally; lower `max_metric_calls` for a quicker run) |
 
 Shared pieces: `src/config.py` picks the model (change `MODEL` to try another one) and `src/data.py` loads the datasets.
 
