@@ -3,15 +3,12 @@
 from pathlib import Path
 
 import dspy
-from dspy.datasets.gsm8k import GSM8K, gsm8k_metric
+from dspy.datasets.gsm8k import gsm8k_metric
 
 from config import local_lm
+from data import load_gsm8k
 
 QUESTION = "If it takes 1 hour for 60 people to play an orchestra how long will it take for 600 people to play the same orchestra?"
-
-
-def load_trainset(n=1000):
-    return GSM8K().train[:n]
 
 
 def as_dict(demo):
@@ -21,7 +18,7 @@ def as_dict(demo):
 
 def main(lm=None, trainset=None, out_dir="dspy_program"):
     dspy.configure(lm=lm or local_lm())
-    trainset = trainset if trainset is not None else load_trainset()
+    trainset = trainset if trainset is not None else load_gsm8k("train", n=200)
 
     program = dspy.ChainOfThought("question -> answer")
     optimizer = dspy.BootstrapFewShot(metric=gsm8k_metric, max_bootstrapped_demos=4, max_labeled_demos=4, max_rounds=5)
@@ -36,7 +33,9 @@ def main(lm=None, trainset=None, out_dir="dspy_program"):
 
     # 2. Whole program: saves the architecture too, so dspy.load() rebuilds it without the original code.
     compiled.save(f"./{out_dir}/whole/", save_program=True)
-    from_program = dspy.load(f"./{out_dir}/whole/")
+    # Whole-program saves use pickle, which can run arbitrary code on load, so dspy makes you opt in.
+    # Only load programs you saved yourself or fully trust.
+    from_program = dspy.load(f"./{out_dir}/whole/", allow_pickle=True)
 
     for loaded in (from_state, from_program):
         assert len(compiled.predict.demos) == len(loaded.predict.demos)

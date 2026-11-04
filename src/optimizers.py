@@ -1,56 +1,48 @@
-# from dspy.datasets import HotPotQA
-import random
+"""Optimize an intent classifier with MIPROv2 and measure accuracy before and after.
+
+MIPROv2 searches over instructions and few-shot examples, scoring each candidate on your
+metric. Always evaluate on data the optimizer never saw (here, the Banking77 test split).
+"""
+
 from typing import Literal
 
 import dspy
-from datasets import load_dataset
-from dspy.datasets import DataLoader
 
-# Load the Banking77 dataset.
-CLASSES = load_dataset("PolyAI/banking77", split="train", trust_remote_code=True).features["label"].names
-kwargs = {"fields": ("text", "label"), "input_keys": ("text",), "split": "train", "trust_remote_code": True}
-
-# Load the first 2000 examples from the dataset, and assign a hint to each *training* example.
-trainset = [
-    dspy.Example(x, hint=CLASSES[x.label], label=CLASSES[x.label]).with_inputs("text", "hint")
-    for x in DataLoader().from_huggingface(dataset_name="PolyAI/banking77", **kwargs)[:2000]
-]
-random.Random(0).shuffle(trainset)
-
-dspy.configure(lm=dspy.LM("ollama_chat/llama3.2:1b", api_base="http://localhost:11434", api_key=""))
-# trainset = [x.with_inputs('question') for x in HotPotQA(train_seed=2024, train_size=500).train]
+from config import local_lm
+from data import load_banking77
 
 
-# # This is suppose to run but I get an error
-# def search_wikipedia(query: str) -> list[str]:
-#     results = dspy.ColBERTv2(url='http://20.102.90.50:2017/wiki17_abstracts')(query, k=3)
-#     return [x['text'] for x in results]
-
-# react = dspy.ReAct("question -> answer", tools=[search_wikipedia])
-
-# tp = dspy.MIPROv2(metric=dspy.evaluate.answer_exact_match, auto="light", num_threads=24)
-# optimized_react = tp.compile(react, trainset=trainset)
-
-# # need to define a Search for this example to work
-# class RAG(dspy.Module):
-#     def __init__(self, num_docs=5):
-#         self.num_docs = num_docs
-#         self.respond = dspy.ChainOfThought('context, question -> response')
-
-#     def forward(self, question):
-#         context = search(question, k=self.num_docs)   # defined in tutorial linked below
-#         return self.respond(context=context, question=question)
-
-# tp = dspy.MIPROv2(metric=dspy.evaluate.SemanticF1(decompositional=True), auto="medium", num_threads=24)
-# optimized_rag = tp.compile(RAG(), trainset=trainset, max_bootstrapped_demos=2, max_labeled_demos=2)
+def accuracy(example, prediction, trace=None):
+    return example.label == prediction.label
 
 
-# Define the DSPy module for classification. It will use the hint at training time, if available.
-signature = dspy.Signature("text -> label").with_updated_fields("label", type_=Literal[tuple(CLASSES)])
-classify = dspy.ChainOfThoughtWithHint(signature)
+def build_classifier(classes):
+    signature = dspy.Signature("text -> label", "Classify the banking intent of a customer message.")
+    # Restrict `label` to the 77 known intents so the model can't invent new ones.
+    signature = signature.with_updated_fields("label", type_=Literal[tuple(classes)])
+    return dspy.ChainOfThought(signature)
 
-# Optimize via BootstrapFinetune.
-optimizer = dspy.BootstrapFinetune(metric=(lambda x, y, trace=None: x.label == y.label), num_threads=24)
-optimized = optimizer.compile(classify, trainset=trainset)
 
-optimized(text="What does a pending cash withdrawal mean?")
+def main(lm=None, trainset=None, devset=None, classes=None, num_threads=4):
+    dspy.configure(lm=lm or local_lm())
+    if trainset is None:
+        trainset, classes = load_banking77("train", n=100)
+    if devset is None:
+        devset, _ = load_banking77("test", n=50)
+
+    classify = build_classifier(classes)
+    evaluate = dspy.Evaluate(devset=devset, metric=accuracy, num_threads=num_threads, display_progress=True)
+
+    before = evaluate(classify)
+
+    optimizer = dspy.MIPROv2(metric=accuracy, auto="light", num_threads=num_threads)
+    optimized = optimizer.compile(classify, trainset=trainset)
+
+    after = evaluate(optimized)
+    print(f"Accuracy on held-out data: {before.score:.1f}% -> {after.score:.1f}%")
+    print(optimized(text="What does a pending cash withdrawal mean?"))
+    return before, after, optimized
+
+
+if __name__ == "__main__":
+    main()

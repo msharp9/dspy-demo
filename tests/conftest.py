@@ -1,6 +1,5 @@
 import dspy
 import pytest
-from dspy.datasets.gsm8k import GSM8K  # noqa: F401  (imported so tests never trigger a download by accident)
 from dspy.utils import DummyLM
 
 # One canned response that satisfies every signature in the demos. The adapter ignores
@@ -15,6 +14,10 @@ CANNED = {
     "section_subheadings": '{"Overview": ["Hosts"], "Final": ["Result"]}',
     "content": "## Section\n\nSome text.",
     "label": "card_arrival",
+    # ReAct: finish immediately
+    "next_thought": "I can answer now.",
+    "next_tool_name": "finish",
+    "next_tool_args": "{}",
 }
 
 

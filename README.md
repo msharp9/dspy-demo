@@ -27,18 +27,20 @@ This project uses `uv` for dependency management.
 
 ## Running the demos
 
-The demos use a local [Ollama](https://ollama.com) model (`llama3.2:1b`). Start Ollama and pull the model first:
+The demos use a local [Ollama](https://ollama.com) model (`llama3.2`). Start Ollama and pull the model first:
 
 ```bash
-ollama pull llama3.2:1b
+ollama pull llama3.2
 ```
 
 | Script | What it shows |
 | --- | --- |
-| `src/main.py` | Signatures, `Predict`, `ChainOfThought`, and a multi-step `Module` |
-| `src/class_demo.py` | Optimizing with `BootstrapFewShot` on GSM8K, then saving and loading the program |
+| `src/main.py` | Signatures, `Predict`, `ChainOfThought`, a `ReAct` agent with Wikipedia tools, and a multi-step `Module` |
+| `src/class_demo.py` | Optimizing with `BootstrapFewShot` on GSM8K math problems, then saving and loading the program |
 | `src/saving.py` | Saving a program as state-only JSON vs. the whole program |
-| `src/optimizers.py` | `BootstrapFinetune` on the Banking77 dataset |
+| `src/optimizers.py` | Optimizing a 77-way intent classifier with `MIPROv2`, measuring accuracy before and after |
+
+Shared pieces: `src/config.py` picks the model (change `MODEL` to try another one) and `src/data.py` loads the datasets.
 
 Run one from the repo root, e.g. `uv run python src/main.py`. Saved programs are written to `dspy_*/` folders, which are git-ignored.
 

@@ -5,7 +5,9 @@ description = "A student-friendly introduction to DSPy: signatures, modules, opt
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "dspy>=2.5.43",
+    "datasets>=4",
+    "dspy>=3.4.1",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
@@ -27,6 +29,4 @@ testpaths = [
 ]
 
 [tool.coverage.report]
-# The demo scripts call a live LLM, so most of src/ isn't unit-testable offline.
-# Raise this as offline tests are added.
-fail_under = 0
+fail_under = 80

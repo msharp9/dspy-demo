@@ -1,6 +1,7 @@
 from typing import Literal
 
 import dspy
+import httpx
 
 from config import local_lm
 
@@ -17,10 +18,11 @@ def main(lm=None):
     response = classify(sentence="This book was super fun to read, though not the last chapter.")
     print(response)
 
-    # Tools - throws pydantic error
-    # react = dspy.ReAct("question -> answer", tools=[evaluate_math, search_wikipedia])
-    # pred = react(question="What is 9362158 divided by the year of birth of David Gregory of Kinnairdy castle?")
-    # print(pred)
+    # Tools: ReAct lets the model call Python functions in a think -> act -> observe loop.
+    # Expected: born 1625, so ~5761.3. Small models often grab the wrong David Gregory; try a bigger model.
+    react = dspy.ReAct("question -> answer: float", tools=[search_wikipedia, divide])
+    pred = react(question="What is 9362158 divided by the year of birth of David Gregory of Kinnairdy castle?")
+    print(pred)
 
     # Pipeline
     draft_article = DraftArticle()
@@ -28,13 +30,32 @@ def main(lm=None):
     print(article)
 
 
-def evaluate_math(expression: str):
-    return dspy.PythonInterpreter({}).execute(expression)
+def divide(a: float, b: float) -> float:
+    """Divide a by b."""
+    return a / b
 
 
-def search_wikipedia(query: str):
-    results = dspy.ColBERTv2(url="http://20.102.90.50:2017/wiki17_abstracts")(query, k=3)
-    return [x["text"] for x in results]
+def search_wikipedia(query: str) -> list[str]:
+    """Search Wikipedia and return short summaries of the top results."""
+    response = httpx.get(
+        "https://en.wikipedia.org/w/api.php",
+        params={
+            "action": "query",
+            "format": "json",
+            "generator": "search",
+            "gsrsearch": query,
+            "gsrlimit": 3,
+            "prop": "extracts",
+            "exintro": 1,
+            "explaintext": 1,
+            "exsentences": 3,
+        },
+        headers={"User-Agent": "dspy-demo/0.1 (https://github.com/msharp9/dspy-demo)"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    pages = response.json().get("query", {}).get("pages", {}).values()
+    return [f"{page['title']}: {page.get('extract', '')}" for page in pages]
 
 
 class Classify(dspy.Signature):
