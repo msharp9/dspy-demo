@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "datasets>=4",
-    "dspy>=3.4.1",
+    "dspy[optuna]>=3.4.1",
     "httpx>=0.28.1",
 ]
 
