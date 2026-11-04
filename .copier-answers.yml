@@ -1,0 +1,6 @@
+# Changes here will be overwritten by Copier
+_commit: v0.1.2
+_src_path: gh:msharp9/copy-pasta
+description: 'A student-friendly introduction to DSPy: signatures, modules, optimizers,
+    and saving programs.'
+name: dspy-demo
