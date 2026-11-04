@@ -1,41 +1,53 @@
+"""Two ways to save a compiled program: state only (JSON) vs. the whole program."""
+
+from pathlib import Path
+
 import dspy
 from dspy.datasets.gsm8k import GSM8K, gsm8k_metric
 
-dspy.settings.configure(lm=dspy.LM("ollama_chat/llama3.2:1b", api_base="http://localhost:11434", api_key=""))
+from config import local_lm
 
-gsm8k = GSM8K()
-gsm8k_trainset = gsm8k.train[:1000]
-dspy_program = dspy.ChainOfThought("question -> answer")
+QUESTION = "If it takes 1 hour for 60 people to play an orchestra how long will it take for 600 people to play the same orchestra?"
 
-optimizer = dspy.BootstrapFewShot(metric=gsm8k_metric, max_bootstrapped_demos=4, max_labeled_demos=4, max_rounds=5)
-compiled_dspy_program = optimizer.compile(dspy_program, trainset=gsm8k_trainset)
 
-compiled_dspy_program.save("./dspy_program2/program.json", save_program=False)
+def load_trainset(n=1000):
+    return GSM8K().train[:n]
 
-# loaded_dspy_program = dspy.ChainOfThought("question -> answer") # Recreate the same program.
-# loaded_dspy_program.load("./dspy_program/program.json")
 
-# print(compiled_dspy_program)
-# print(loaded_dspy_program)
+def as_dict(demo):
+    # Demos can come back as plain dicts or as dspy.Example objects depending on how they were loaded.
+    return demo if isinstance(demo, dict) else demo.toDict()
 
-# # these asserts are failing
-# assert len(compiled_dspy_program.demos) == len(loaded_dspy_program.demos)
-# for original_demo, loaded_demo in zip(compiled_dspy_program.demos, loaded_dspy_program.demos):
-#     # Loaded demo is a dict, while the original demo is a dspy.Example.
-#     assert original_demo.toDict() == loaded_demo
-# assert str(compiled_dspy_program.signature) == str(loaded_dspy_program.signature)
 
-compiled_dspy_program.save("./dspy_program3/", save_program=True)
+def main(lm=None, trainset=None, out_dir="dspy_program"):
+    dspy.configure(lm=lm or local_lm())
+    trainset = trainset if trainset is not None else load_trainset()
 
-loaded_dspy_program = dspy.load("./dspy_program3/")
+    program = dspy.ChainOfThought("question -> answer")
+    optimizer = dspy.BootstrapFewShot(metric=gsm8k_metric, max_bootstrapped_demos=4, max_labeled_demos=4, max_rounds=5)
+    compiled = optimizer.compile(program, trainset=trainset)
 
-assert len(compiled_dspy_program.predict.demos) == len(loaded_dspy_program.predict.demos)
-for original_demo, loaded_demo in zip(compiled_dspy_program.predict.demos, loaded_dspy_program.predict.demos):
-    # Loaded demo is a dict, while the original demo is a dspy.Example.
-    assert original_demo.toDict() == loaded_demo.toDict()
-assert str(compiled_dspy_program.predict.signature) == str(loaded_dspy_program.predict.signature)
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
 
-result = loaded_dspy_program(
-    question="If it takes 1 hour for 60 people to play an orchestra how long will it take for 600 people to play the same orchestra?"
-)
-print(result)
+    # 1. State only: saves demos/instructions. To load, recreate the same program and call .load().
+    compiled.save(f"./{out_dir}/state.json", save_program=False)
+    from_state = dspy.ChainOfThought("question -> answer")
+    from_state.load(f"./{out_dir}/state.json")
+
+    # 2. Whole program: saves the architecture too, so dspy.load() rebuilds it without the original code.
+    compiled.save(f"./{out_dir}/whole/", save_program=True)
+    from_program = dspy.load(f"./{out_dir}/whole/")
+
+    for loaded in (from_state, from_program):
+        assert len(compiled.predict.demos) == len(loaded.predict.demos)
+        for original_demo, loaded_demo in zip(compiled.predict.demos, loaded.predict.demos, strict=True):
+            assert as_dict(original_demo) == as_dict(loaded_demo)
+        assert str(compiled.predict.signature) == str(loaded.predict.signature)
+
+    result = from_program(question=QUESTION)
+    print(result)
+    return result
+
+
+if __name__ == "__main__":
+    main()

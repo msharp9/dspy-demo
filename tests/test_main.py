@@ -1,5 +1,6 @@
 import dspy
 
+import main
 from main import Classify, DraftArticle, DraftSection, Outline
 
 
@@ -17,3 +18,10 @@ def test_draft_article_is_module():
     article = DraftArticle()
     assert isinstance(article, dspy.Module)
     assert len(article.predictors()) == 2
+
+
+def test_main_runs_with_mocked_lm(fake_lm, capsys):
+    main.main(lm=fake_lm)
+    out = capsys.readouterr().out
+    assert "positive" in out
+    assert "World Cup 2002" in out
